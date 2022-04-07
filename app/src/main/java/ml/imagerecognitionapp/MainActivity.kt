@@ -4,11 +4,13 @@ import android.Manifest
 import android.app.Activity
 import android.app.Dialog
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
@@ -22,6 +24,7 @@ import ml.imagerecognitionapp.ml.MobilenetV110224Quant
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import java.io.ByteArrayOutputStream
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,7 +38,7 @@ class MainActivity : AppCompatActivity() {
 
         var filename="label.txt"
         var inputstring=application.assets.open(filename).bufferedReader().use { it.readText() }
-        var wordlist=inputstring.split("\n")
+        wordlist=inputstring.split("\n")
 
         btn_take_picture.isEnabled=false
 
@@ -114,31 +117,39 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
-
-
         if (requestCode == 100 && resultCode==Activity.RESULT_OK){
-            val pic:Bitmap?=data!!.getParcelableExtra("data")
-            if(pic==null)
-                img.setImageURI(data!!.data)
-            else
-                img.setImageBitmap(pic)
-                bitmap=MediaStore.Images.Media.getBitmap(this.contentResolver,data!!.data)
-            predict()
+           val pic:Bitmap?=data!!.getParcelableExtra("data")
+           img.setImageBitmap(pic)
+            var uri=getImageUri(this,pic!!)
+           bitmap=MediaStore.Images.Media.getBitmap(this.contentResolver,uri)
+          //  predict()
         }
         else if(requestCode == 200 && resultCode==Activity.RESULT_OK)
         {
-                img.setImageURI(data!!.data)
-            bitmap=MediaStore.Images.Media.getBitmap(this.contentResolver,data!!.data)
+            img.setImageURI(data!!.data)
+            bitmap=MediaStore.Images.Media.getBitmap(this.contentResolver,data.data!!)
             predict()
         }
 
+
+    }
+
+    fun getImageUri(inContext: Context, inImage: Bitmap): Uri? {
+        val bytes = ByteArrayOutputStream()
+        inImage.compress(Bitmap.CompressFormat.JPEG, 100, bytes)
+        val path = MediaStore.Images.Media.insertImage(
+            inContext.getContentResolver(),
+            inImage,
+            "Title",
+            null
+        )
+        return Uri.parse(path)
     }
 
     private fun predict()
     {
-        val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, 224, 224, 3), DataType.UINT8)
-
         val predict:Bitmap = Bitmap.createScaledBitmap(bitmap, 224, 224, true)
+        val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, 224, 224, 3), DataType.UINT8)
         val model = MobilenetV110224Quant.newInstance(this)
         var pBuffer=TensorImage.fromBitmap(predict)
         var bBuffer = pBuffer.buffer
